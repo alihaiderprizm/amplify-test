@@ -1,5 +1,6 @@
 import Image from "next/image";
 import styles from "./page.module.css";
+import TodoList from '../components/TodoList';
 
 export default function Home() {
   return (
@@ -90,6 +91,9 @@ export default function Home() {
           Go to nextjs.org →
         </a>
       </footer>
+      <main className="min-h-screen p-8">
+        <TodoList />
+      </main>
     </div>
   );
 }
