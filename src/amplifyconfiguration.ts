@@ -1,3 +1,5 @@
+/* eslint-disable  @typescript-eslint/no-explicit-any */
+
 import { Amplify } from 'aws-amplify';
 
 const amplifyConfig = {
@@ -17,6 +19,6 @@ const amplifyConfig = {
   },
 };
 
-Amplify.configure(amplifyConfig);
+Amplify.configure(amplifyConfig as any);
 
 export default amplifyConfig; 

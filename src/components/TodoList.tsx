@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { generateClient } from 'aws-amplify/api';
+// import { generateClient } from 'aws-amplify/api';
 import { Todo } from '../types/todo';
 import { v4 as uuidv4 } from 'uuid';
 
-const client = generateClient();
+// const client = generateClient();
 
 export default function TodoList() {
   const [todos, setTodos] = useState<Todo[]>([]);
