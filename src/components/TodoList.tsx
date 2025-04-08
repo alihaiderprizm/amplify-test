@@ -1,32 +1,41 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { generateClient } from 'aws-amplify/api';
+import { useSession } from 'next-auth/react';
+import { Alert, Button, Input, List, Spin, message } from 'antd';
 import { Todo } from '../types/todo';
-import { v4 as uuidv4 } from 'uuid';
-import { Alert, Button, Input, List, Spin } from 'antd';
-
-const client = generateClient();
+import { getTodos, createTodo, updateTodo, deleteTodo, isAdmin } from '../db/db';
 
 export default function TodoList() {
+  const { data: session } = useSession();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [newTodo, setNewTodo] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isUserAdmin, setIsUserAdmin] = useState(false);
 
   useEffect(() => {
-    fetchTodos();
-  }, []);
+    if (session?.user?.id) {
+      checkAdminStatus();
+      fetchTodos();
+    }
+  }, [session]);
+
+  const checkAdminStatus = async () => {
+    if (session?.user?.id) {
+      const admin = await isAdmin(session.user.id);
+      setIsUserAdmin(admin);
+    }
+  };
 
   const fetchTodos = async () => {
+    if (!session?.user?.id) return;
+    
     setLoading(true);
     setError(null);
     try {
-      // TODO: Implement API call to fetch todos
-      // const result = await client.graphql({
-      //   query: listTodos
-      // });
-      // setTodos(result.data.listTodos.items);
+      const userTodos = await getTodos(session.user.id);
+      setTodos(userTodos);
     } catch (error) {
       setError('Failed to fetch todos. Please try again later.');
       console.error('Error fetching todos:', error);
@@ -36,6 +45,7 @@ export default function TodoList() {
   };
 
   const addTodo = async () => {
+    if (!session?.user?.id) return;
     if (!newTodo.trim()) {
       setError('Todo title cannot be empty');
       return;
@@ -43,22 +53,14 @@ export default function TodoList() {
 
     setLoading(true);
     setError(null);
-    const todo: Todo = {
-      id: uuidv4(),
-      title: newTodo,
-      completed: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
     try {
-      // TODO: Implement API call to create todo
-      // await client.graphql({
-      //   query: createTodo,
-      //   variables: { input: todo }
-      // });
+      const todo = await createTodo(
+        { title: newTodo },
+        session.user.id
+      );
       setTodos([...todos, todo]);
       setNewTodo('');
+      message.success('Todo added successfully');
     } catch (error) {
       setError('Failed to create todo. Please try again.');
       console.error('Error creating todo:', error);
@@ -68,17 +70,20 @@ export default function TodoList() {
   };
 
   const toggleTodo = async (id: string) => {
+    if (!session?.user?.id) return;
+    
     setLoading(true);
     setError(null);
     try {
-      // TODO: Implement API call to update todo
-      // await client.graphql({
-      //   query: updateTodo,
-      //   variables: { input: { id, completed: !todos.find(t => t.id === id)?.completed } }
-      // });
-      setTodos(todos.map(todo =>
-        todo.id === id ? { ...todo, completed: !todo.completed } : todo
-      ));
+      const todo = todos.find(t => t.id === id);
+      if (!todo) return;
+
+      const updatedTodo = await updateTodo(
+        { id, completed: !todo.completed },
+        session.user.id
+      );
+      setTodos(todos.map(t => t.id === id ? updatedTodo : t));
+      message.success('Todo updated successfully');
     } catch (error) {
       setError('Failed to update todo. Please try again.');
       console.error('Error updating todo:', error);
@@ -88,15 +93,14 @@ export default function TodoList() {
   };
 
   const deleteTodo = async (id: string) => {
+    if (!session?.user?.id) return;
+    
     setLoading(true);
     setError(null);
     try {
-      // TODO: Implement API call to delete todo
-      // await client.graphql({
-      //   query: deleteTodo,
-      //   variables: { input: { id } }
-      // });
+      await deleteTodo(id, session.user.id);
       setTodos(todos.filter(todo => todo.id !== id));
+      message.success('Todo deleted successfully');
     } catch (error) {
       setError('Failed to delete todo. Please try again.');
       console.error('Error deleting todo:', error);
@@ -105,9 +109,29 @@ export default function TodoList() {
     }
   };
 
+  if (!session) {
+    return (
+      <div className="text-center py-8">
+        <Alert
+          message="Authentication Required"
+          description="Please log in to view your todos."
+          type="info"
+          showIcon
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-md mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Todo List</h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Todo List</h1>
+        {isUserAdmin && (
+          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+            Admin
+          </span>
+        )}
+      </div>
       
       {error && (
         <Alert
@@ -175,7 +199,7 @@ export default function TodoList() {
                     {todo.title}
                   </span>
                 }
-                description={`Created: ${new Date(todo.createdAt).toLocaleDateString()}`}
+                description={`Created: ${new Date(todo.created_at).toLocaleDateString()}`}
               />
             </List.Item>
           )}

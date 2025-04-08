@@ -1,0 +1,192 @@
+import { Pool } from 'pg';
+import { User, Product, Cart, CartItem, Order, OrderItem, CartWithItems, OrderWithItems } from './types';
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
+
+// User functions
+export async function getUserByCognitoId(cognito_id: string): Promise<User | null> {
+  const result = await pool.query(
+    'SELECT * FROM users WHERE cognito_id = $1',
+    [cognito_id]
+  );
+  return result.rows[0] || null;
+}
+
+export async function createUser(cognito_id: string, email: string): Promise<User> {
+  const result = await pool.query(
+    'INSERT INTO users (cognito_id, email) VALUES ($1, $2) RETURNING *',
+    [cognito_id, email]
+  );
+  return result.rows[0];
+}
+
+// Product functions
+export async function getProducts(): Promise<Product[]> {
+  const result = await pool.query('SELECT * FROM products ORDER BY created_at DESC');
+  return result.rows;
+}
+
+export async function getProductById(id: string): Promise<Product | null> {
+  const result = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
+  return result.rows[0] || null;
+}
+
+export async function createProduct(product: Omit<Product, 'id' | 'created_at' | 'updated_at'>): Promise<Product> {
+  const result = await pool.query(
+    'INSERT INTO products (name, description, price, stock_quantity, image_url) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+    [product.name, product.description, product.price, product.stock_quantity, product.image_url]
+  );
+  return result.rows[0];
+}
+
+export async function updateProduct(id: string, product: Partial<Product>): Promise<Product | null> {
+  const fields = Object.keys(product).map((key, index) => `${key} = $${index + 2}`);
+  const values = Object.values(product);
+
+  const result = await pool.query(
+    `UPDATE products SET ${fields.join(', ')} WHERE id = $1 RETURNING *`,
+    [id, ...values]
+  );
+  return result.rows[0] || null;
+}
+
+export async function deleteProduct(id: string): Promise<boolean> {
+  const result = await pool.query('DELETE FROM products WHERE id = $1', [id]);
+  return result.rowCount !== null && result.rowCount > 0;
+}
+
+// Cart functions
+export async function getCartByUserId(user_id: string): Promise<CartWithItems | null> {
+  const cartResult = await pool.query('SELECT * FROM carts WHERE user_id = $1', [user_id]);
+  if (!cartResult.rows[0]) return null;
+
+  const itemsResult = await pool.query(
+    `SELECT ci.*, p.* 
+     FROM cart_items ci 
+     JOIN products p ON ci.product_id = p.id 
+     WHERE ci.cart_id = $1`,
+    [cartResult.rows[0].id]
+  );
+
+  return {
+    ...cartResult.rows[0],
+    items: itemsResult.rows
+  };
+}
+
+export async function createCart(user_id: string): Promise<Cart> {
+  const result = await pool.query(
+    'INSERT INTO carts (user_id) VALUES ($1) RETURNING *',
+    [user_id]
+  );
+  return result.rows[0];
+}
+
+export async function addToCart(cart_id: string, product_id: string, quantity: number): Promise<CartItem> {
+  const result = await pool.query(
+    `INSERT INTO cart_items (cart_id, product_id, quantity) 
+     VALUES ($1, $2, $3) 
+     ON CONFLICT (cart_id, product_id) 
+     DO UPDATE SET quantity = cart_items.quantity + $3 
+     RETURNING *`,
+    [cart_id, product_id, quantity]
+  );
+  return result.rows[0];
+}
+
+export async function updateCartItem(cart_id: string, product_id: string, quantity: number): Promise<CartItem | null> {
+  const result = await pool.query(
+    'UPDATE cart_items SET quantity = $3 WHERE cart_id = $1 AND product_id = $2 RETURNING *',
+    [cart_id, product_id, quantity]
+  );
+  return result.rows[0] || null;
+}
+
+export async function removeFromCart(cart_id: string, product_id: string): Promise<boolean> {
+  const result = await pool.query(
+    'DELETE FROM cart_items WHERE cart_id = $1 AND product_id = $2',
+    [cart_id, product_id]
+  );
+  return result.rowCount !== null && result.rowCount > 0;
+}
+
+// Order functions
+export async function createOrder(user_id: string, cart: CartWithItems): Promise<OrderWithItems> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Create order
+    const orderResult = await client.query(
+      'INSERT INTO orders (user_id, total_amount) VALUES ($1, $2) RETURNING *',
+      [user_id, cart.items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)]
+    );
+    const order = orderResult.rows[0];
+
+    // Create order items
+    const orderItems = await Promise.all(
+      cart.items.map(async (item) => {
+        const result = await client.query(
+          'INSERT INTO order_items (order_id, product_id, quantity, price_at_time) VALUES ($1, $2, $3, $4) RETURNING *',
+          [order.id, item.product_id, item.quantity, item.product.price]
+        );
+        return result.rows[0];
+      })
+    );
+
+    // Clear cart
+    await client.query('DELETE FROM cart_items WHERE cart_id = $1', [cart.id]);
+
+    await client.query('COMMIT');
+
+    return {
+      ...order,
+      items: orderItems.map(item => ({
+        ...item,
+        product: cart.items.find(ci => ci.product_id === item.product_id)!.product
+      }))
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getOrdersByUserId(user_id: string): Promise<OrderWithItems[]> {
+  const ordersResult = await pool.query(
+    'SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC',
+    [user_id]
+  );
+
+  const orders = await Promise.all(
+    ordersResult.rows.map(async (order) => {
+      const itemsResult = await pool.query(
+        `SELECT oi.*, p.* 
+         FROM order_items oi 
+         JOIN products p ON oi.product_id = p.id 
+         WHERE oi.order_id = $1`,
+        [order.id]
+      );
+
+      return {
+        ...order,
+        items: itemsResult.rows
+      };
+    })
+  );
+
+  return orders;
+}
+
+export async function updateOrderStatus(id: string, status: Order['status']): Promise<Order | null> {
+  const result = await pool.query(
+    'UPDATE orders SET status = $2 WHERE id = $1 RETURNING *',
+    [id, status]
+  );
+  return result.rows[0] || null;
+} 

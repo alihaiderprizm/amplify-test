@@ -1,40 +1,35 @@
 {
-  "name": "next-aws-test",
+  "name": "ecommerce-platform",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "migrate": "ts-node src/db/migrate.ts"
   },
   "dependencies": {
-    "@aws-amplify/adapter-nextjs": "^1.5.8",
-    "@aws-amplify/ui-react": "^5.0.0",
-    "antd": "^5.12.0",
-    "aws-amplify": "^6.14.1",
-    "next": "14.1.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "uuid": "^9.0.0"
+    "@ant-design/icons": "^5.0.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.0.0",
+    "@prisma/client": "^5.0.0",
+    "antd": "^5.0.0",
+    "date-fns": "^2.30.0",
+    "next": "14.0.0",
+    "next-auth": "^4.0.0",
+    "pg": "^8.14.1",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
   },
   "devDependencies": {
-    "@aws-amplify/backend": "^1.15.0",
-    "@aws-amplify/backend-cli": "^1.5.0",
-    "@eslint/eslintrc": "^3",
-    "@types/estree": "^1.0.5",
-    "@types/json-schema": "^7.0.15",
-    "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
-    "@types/uuid": "^9.0.0",
-    "aws-cdk": "2.1003.0",
-    "aws-cdk-lib": "2.180.0",
-    "constructs": "^10.0.0",
-    "esbuild": "^0.25.2",
-    "eslint": "^9",
-    "eslint-config-next": "14.1.0",
-    "tsx": "^4.19.3",
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.10.9",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "14.0.0",
+    "prisma": "^5.0.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.0.0"
   }
 }
