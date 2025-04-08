@@ -1,7 +1,7 @@
 import { Pool } from 'pg';
 import { Todo, CreateTodoInput, UpdateTodoInput } from '../types/todo';
 
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
