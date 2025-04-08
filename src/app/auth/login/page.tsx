@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
 import { Button, Form, Input, Card, message } from 'antd';
 import Link from 'next/link';
+import axios from 'axios';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,22 +13,17 @@ export default function LoginPage() {
   const onFinish = async (values: { email: string; password: string }) => {
     setLoading(true);
     try {
-      const result = await signIn('cognito', {
-        email: values.email,
-        password: values.password,
-        redirect: false,
-      });
+      const { data } = await axios.post('/api/auth/login', values);
+console.log("this si data====",data)
+      // Store tokens in localStorage or cookies
+      localStorage.setItem('accessToken', data.user.accessToken);
+      localStorage.setItem('idToken', data.user.idToken);
+      localStorage.setItem('refreshToken', data.user.refreshToken);
 
-      if (result?.error) {
-        message.error('Invalid email or password');
-        return;
-      }
-
-
-      console.log("this si result=====",result)
+      message.success('Login successful!');
       // router.push('/');
-    } catch (error) {
-      message.error('An error occurred during login');
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Login failed');
     } finally {
       setLoading(false);
     }
