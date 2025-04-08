@@ -1,10 +1,87 @@
 import { Pool } from 'pg';
 import { User, Product, Cart, CartItem, Order, OrderItem, CartWithItems, OrderWithItems } from './types';
+import { JwtPayload, verify, VerifyOptions, VerifyCallback } from 'jsonwebtoken';
+import { GetPublicKeyOrSecret, JwtHeader } from 'jsonwebtoken';
+import jwksClient from 'jwks-rsa';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
+
+// JWKS client for Cognito
+const client = jwksClient({
+  jwksUri: `https://cognito-idp.${process.env.NEXT_PUBLIC_AWS_REGION}.amazonaws.com/${process.env.NEXT_PUBLIC_USER_POOL_ID}/.well-known/jwks.json`
+});
+
+// Get signing key from JWKS
+const getKey = (header: JwtHeader | null, callback: (err: Error | null, key?: string) => void) => {
+  if (!header?.kid) {
+    callback(new Error('No KID in token header'));
+    return;
+  }
+  client.getSigningKey(header.kid, (err: Error | null, key?: jwksClient.SigningKey) => {
+    if (err) {
+      callback(err);
+      return;
+    }
+    if (!key) {
+      callback(new Error('No signing key found'));
+      return;
+    }
+    const signingKey = key.getPublicKey();
+    callback(null, signingKey);
+  });
+};
+
+// Verify access token
+export async function verifyAccessToken(token: string): Promise<JwtPayload> {
+  return new Promise((resolve, reject) => {
+    const options: VerifyOptions = {
+      algorithms: ['RS256'],
+      issuer: `https://cognito-idp.${process.env.NEXT_PUBLIC_AWS_REGION}.amazonaws.com/${process.env.NEXT_PUBLIC_USER_POOL_ID}`,
+      audience: process.env.NEXT_PUBLIC_USER_POOL_CLIENT_ID,
+      complete: false
+    };
+
+    const callback: VerifyCallback = (err: Error | null, decoded: string | JwtPayload | undefined) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      if (!decoded || typeof decoded === 'string') {
+        reject(new Error('Token verification failed'));
+        return;
+      }
+      resolve(decoded as JwtPayload);
+    };
+
+    verify(token, getKey, options, callback);
+  });
+}
+
+// Get user by verified access token
+export async function getUserByVerifiedAccessToken(accessToken: string): Promise<User | null> {
+  try {
+    // Verify the token
+    const decoded = await verifyAccessToken(accessToken);
+    const cognitoId = decoded.sub;
+
+    if (!cognitoId) {
+      throw new Error('Invalid token: missing sub claim');
+    }
+
+    // Get user from database
+    const result = await pool.query(
+      'SELECT * FROM users WHERE cognito_id = $1',
+      [cognitoId]
+    );
+    return result.rows[0] || null;
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    return null;
+  }
+}
 
 // User functions
 export async function getUserByCognitoId(cognito_id: string): Promise<User | null> {
@@ -21,6 +98,22 @@ export async function createUser(cognito_id: string, email: string): Promise<Use
     [cognito_id, email]
   );
   return result.rows[0];
+}
+
+export async function getUserByAccessToken(accessToken: string): Promise<User | null> {
+  const result = await pool.query(
+    'SELECT u.* FROM users u JOIN cognito_tokens ct ON u.id = ct.user_id WHERE ct.access_token = $1',
+    [accessToken]
+  );
+  return result.rows[0] || null;
+}
+
+export async function getUserByEmail(email: string): Promise<User | null> {
+  const result = await pool.query(
+    'SELECT * FROM users WHERE email = $1',
+    [email]
+  );
+  return result.rows[0] || null;
 }
 
 // Product functions

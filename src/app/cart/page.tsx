@@ -1,121 +1,119 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Table, Button, message, InputNumber, Space, Typography, Card } from 'antd';
 import { DeleteOutlined, ShoppingCartOutlined } from '@ant-design/icons';
+import api from '@/lib/axios';
 
 const { Title } = Typography;
 
 interface CartItem {
   id: string;
+  cart_id: string;
   product_id: string;
   quantity: number;
-  product: {
-    id: string;
-    name: string;
-    price: number;
-    image_url: string | null;
-  };
+  name: string;
+  price: string;
+  description: string;
+  image_url: string;
+  stock_quantity: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export default function CartPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!session) {
+    // Only redirect if we're sure the user is not authenticated
+    if (status === 'unauthenticated') {
       router.push('/auth/login');
       return;
     }
-    fetchCart();
-  }, [session]);
 
-  const fetchCart = async () => {
+    // Only fetch cart if we have a session
+    if (status && status === 'authenticated') {
+      fetchCart();
+    }
+  }, [status, session]);
+
+  const fetchCart = useCallback(async () => {
     try {
-      const response = await fetch('/api/cart');
-      if (!response.ok) throw new Error('Failed to fetch cart');
-      const data = await response.json();
+      const { data } = await api.get('/cart');
+      console.log("Cart data:", data);
       setCartItems(data.items || []);
-    } catch (error) {
-      message.error('Failed to load cart');
+    } catch (error: any) {
+      console.error('Error fetching cart:', error);
+      message.error(error.response?.data?.error || 'Failed to load cart');
     } finally {
       setLoading(false);
     }
-  };
+  }, [])
 
   const updateQuantity = async (productId: string, quantity: number) => {
     try {
-      const response = await fetch('/api/cart', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          product_id: productId,
-          quantity,
-        }),
+      await api.put('/cart', {
+        product_id: productId,
+        quantity,
       });
-
-      if (!response.ok) throw new Error('Failed to update quantity');
       fetchCart();
-    } catch (error) {
-      message.error('Failed to update quantity');
+    } catch (error: any) {
+      console.error('Error updating quantity:', error);
+      message.error(error.response?.data?.error || 'Failed to update quantity');
     }
   };
 
   const removeItem = async (productId: string) => {
     try {
-      const response = await fetch(`/api/cart?product_id=${productId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) throw new Error('Failed to remove item');
+      await api.delete(`/cart?product_id=${productId}`);
       message.success('Item removed from cart');
       fetchCart();
-    } catch (error) {
-      message.error('Failed to remove item');
+    } catch (error: any) {
+      console.error('Error removing item:', error);
+      message.error(error.response?.data?.error || 'Failed to remove item');
     }
   };
 
   const checkout = async () => {
     try {
-      const response = await fetch('/api/orders', {
-        method: 'POST',
-      });
-
-      if (!response.ok) throw new Error('Failed to create order');
+      await api.post('/orders');
       message.success('Order created successfully');
       router.push('/orders');
-    } catch (error) {
-      message.error('Failed to create order');
+    } catch (error: any) {
+      console.error('Error creating order:', error);
+      message.error(error.response?.data?.error || 'Failed to create order');
     }
   };
 
   const columns = [
     {
       title: 'Product',
-      dataIndex: ['product', 'name'],
+      dataIndex: 'name',
       key: 'name',
       render: (_: any, record: CartItem) => (
         <div className="flex items-center">
           <img
-            src={record.product.image_url || '/placeholder.png'}
-            alt={record.product.name}
+            src={record.image_url || '/placeholder.png'}
+            alt={record.name}
             className="w-16 h-16 object-cover mr-4"
           />
-          <span>{record.product.name}</span>
+          <div>
+            <div className="font-medium">{record.name}</div>
+            <div className="text-gray-500 text-sm">{record.description}</div>
+          </div>
         </div>
       ),
     },
     {
       title: 'Price',
-      dataIndex: ['product', 'price'],
+      dataIndex: 'price',
       key: 'price',
-      render: (price: number) => `$${price.toFixed(2)}`,
+      render: (price: string) => `$${parseFloat(price).toFixed(2)}`,
     },
     {
       title: 'Quantity',
@@ -124,6 +122,7 @@ export default function CartPage() {
       render: (quantity: number, record: CartItem) => (
         <InputNumber
           min={1}
+          max={record.stock_quantity}
           value={quantity}
           onChange={(value) => updateQuantity(record.product_id, value || 1)}
         />
@@ -133,7 +132,7 @@ export default function CartPage() {
       title: 'Total',
       key: 'total',
       render: (_: any, record: CartItem) => (
-        `$${(record.product.price * record.quantity).toFixed(2)}`
+        `$${(parseFloat(record.price) * record.quantity).toFixed(2)}`
       ),
     },
     {
@@ -151,9 +150,21 @@ export default function CartPage() {
   ];
 
   const total = cartItems.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
+    (sum, item) => (sum ?? 0) + (parseFloat(item.price ?? '0') * (item.quantity ?? 1)),
     0
   );
+
+  // Show loading state while checking authentication
+  if (status === 'loading') {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading cart...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -5,6 +5,8 @@ import { useSession } from 'next-auth/react';
 import { Card, Row, Col, Button, message, Input, Space } from 'antd';
 import { ShoppingCartOutlined } from '@ant-design/icons';
 import Link from 'next/link';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/store/store';
 
 interface Product {
   id: string;
@@ -17,6 +19,8 @@ interface Product {
 
 export default function HomePage() {
   const { data: session } = useSession();
+  const user = useSelector((state: RootState) => state.user)
+  console.log("data", user)
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

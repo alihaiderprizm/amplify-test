@@ -5,21 +5,51 @@ import {
   createCart,
   addToCart,
   updateCartItem,
-  removeFromCart
+  removeFromCart,
+  getUserByVerifiedAccessToken
 } from '@/db/utils';
 import { authOptions } from '../auth/[...nextauth]/route';
 import { CartWithItems } from '@/db/types';
+import api from '@/lib/axios';
 
-export async function GET() {
+interface SessionUser {
+  id: string;
+  email: string;
+  name: string;
+}
+
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session) {
+  const accessToken = request.headers.get('Authorization')?.split(' ')[1];
+
+  if (!session && !accessToken) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const cart = await getCartByUserId(session.user.id);
+    let userId: string | undefined;
+    
+    if (accessToken) {
+      const user = await getUserByVerifiedAccessToken(accessToken);
+      if (!user) {
+        return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+      }
+      userId = user.id;
+    } else if (session?.user?.id) {
+      userId = session.user.id;
+    }
+
+    if (!userId) {
+      console.error('User ID not found - Session:', session, 'Access Token:', !!accessToken);
+      return NextResponse.json({ 
+        error: 'User ID not found',
+        details: 'Please ensure you are properly authenticated'
+      }, { status: 400 });
+    }
+
+    const cart = await getCartByUserId(userId);
     if (!cart) {
-      const newCart = await createCart(session.user.id);
+      const newCart = await createCart(userId);
       return NextResponse.json({ ...newCart, items: [] });
     }
     return NextResponse.json(cart);
@@ -31,11 +61,29 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session) {
+  const accessToken = request.headers.get('Authorization')?.split(' ')[1];
+
+  if (!session && !accessToken) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
+    let userId: string | undefined;
+    
+    if (accessToken) {
+      const user = await getUserByVerifiedAccessToken(accessToken);
+      if (!user) {
+        return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+      }
+      userId = user.id;
+    } else if (session?.user?.id) {
+      userId = session.user.id;
+    }
+
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID not found' }, { status: 400 });
+    }
+
     const body = await request.json();
     const { product_id, quantity } = body;
 
@@ -46,12 +94,10 @@ export async function POST(request: Request) {
       );
     }
 
-    let cart = await getCartByUserId(session.user.id);
+    let cart = await getCartByUserId(userId);
     if (!cart) {
-
-      const newCart = await createCart(session.user.id);
+      const newCart = await createCart(userId);
       cart = { ...newCart, items: [] } as CartWithItems;
-
     }
 
     if (!cart) {
