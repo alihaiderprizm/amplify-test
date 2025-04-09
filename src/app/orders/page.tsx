@@ -12,11 +12,12 @@ interface OrderItem {
   id: string;
   quantity: number;
   price_at_time: number;
-  product: {
-    id: string;
-    name: string;
-    image_url: string | null;
-  };
+  // id: string;
+  name: string;
+  image_url: string | null;
+  // product: {
+   
+  // };
 }
 
 interface Order {
@@ -35,7 +36,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     if (!session) {
-      router.push('/auth/login');
+      // router.push('/auth/login');
       return;
     }
     fetchOrders();
@@ -92,12 +93,13 @@ export default function OrdersPage() {
           {record.items.map((item) => (
             <div key={item.id} className="flex items-center mb-2">
               <img
-                src={item.product.image_url || '/placeholder.png'}
-                alt={item.product.name}
+              style={{height:'50px',width:'50px'}}
+                src={item?.image_url || '/placeholder.png'}
+                alt={item?.name}
                 className="w-8 h-8 object-cover mr-2"
               />
               <span>
-                {item.product.name} x {item.quantity}
+                {item?.name} x {item?.quantity}
               </span>
             </div>
           ))}
@@ -108,7 +110,7 @@ export default function OrdersPage() {
       title: 'Total',
       dataIndex: 'total_amount',
       key: 'total_amount',
-      render: (amount: number) => `$${amount.toFixed(2)}`,
+      render: (amount: number) => `$${amount}`,
     },
     {
       title: 'Status',

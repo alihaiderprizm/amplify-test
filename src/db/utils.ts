@@ -153,37 +153,77 @@ export async function deleteProduct(id: string): Promise<boolean> {
 
 // Cart functions
 export async function getCartByUserId(user_id: string): Promise<CartWithItems | null> {
-  const cartResult = await pool.query('SELECT * FROM carts WHERE user_id = $1', [user_id]);
-  if (!cartResult.rows[0]) return null;
+  try {
+    // First get the cart
+    const cartResult = await pool.query(
+      'SELECT * FROM carts WHERE user_id = $1',
+      [user_id]
+    );
 
-  const itemsResult = await pool.query(
-    `SELECT ci.*, p.* 
-     FROM cart_items ci 
-     JOIN products p ON ci.product_id = p.id 
-     WHERE ci.cart_id = $1`,
-    [cartResult.rows[0].id]
-  );
+    console.log("cartResult", cartResult)
 
-  return {
-    ...cartResult.rows[0],
-    items: itemsResult.rows
-  };
+    if (!cartResult.rows[0]) {
+      return null;
+    }
+
+    // Then get the cart items
+    const itemsResult = await pool.query(
+      `SELECT ci.*, p.* 
+       FROM cart_items ci 
+       JOIN products p ON ci.product_id = p.id 
+       WHERE ci.cart_id = $1`,
+      [cartResult.rows[0].id]
+    );
+
+    return {
+      ...cartResult.rows[0],
+      items: itemsResult.rows
+    };
+  } catch (error) {
+    console.error('Error in getCartByUserId:', error);
+    throw error;
+  }
 }
 
-export async function createCart(user_id: string): Promise<Cart> {
-  const result = await pool.query(
-    'INSERT INTO carts (user_id) VALUES ($1) RETURNING *',
-    [user_id]
-  );
-  return result.rows[0];
+export async function createCart(user_id: string): Promise<Cart | null> {
+  try {
+    const result = await pool.query(
+      'INSERT INTO carts (user_id) VALUES ($1) RETURNING *',
+      [user_id]
+    );
+
+    if (!result.rows[0]) {
+      console.error('Failed to create cart for user:', user_id);
+      return null;
+    }
+
+    return result.rows[0];
+  } catch (error) {
+    console.error('Error creating cart:', error);
+    throw error;
+  }
 }
 
 export async function addToCart(cart_id: string, product_id: string, quantity: number, user_id: string): Promise<CartItem> {
-  const result = await pool.query(
-    'INSERT INTO cart_items (cart_id, product_id, quantity, user_id) VALUES ($1, $2, $3, $4) RETURNING *',
-    [cart_id, product_id, quantity, user_id]
-  );
-  return result.rows[0];
+  try {
+    const result = await pool.query(
+      `INSERT INTO cart_items (cart_id, product_id, quantity, user_id) 
+       VALUES ($1, $2, $3, $4) 
+       ON CONFLICT (cart_id, product_id) 
+       DO UPDATE SET quantity = cart_items.quantity + $3 
+       RETURNING *`,
+      [cart_id, product_id, quantity, user_id]
+    );
+
+    if (!result.rows[0]) {
+      throw new Error('Failed to add item to cart');
+    }
+
+    return result.rows[0];
+  } catch (error) {
+    console.error('Error in addToCart:', error);
+    throw error;
+  }
 }
 
 export async function updateCartItem(cart_id: string, product_id: string, quantity: number): Promise<CartItem | null> {
@@ -207,12 +247,17 @@ export async function createOrder(user_id: string, cart: CartWithItems): Promise
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
+    console.log("user_id", user_id)
+    console.log("cart.items", cart.items)
+    console.log("cart.items.product.price", cart.items.reduce((sum, item) => sum + (parseFloat(item.price.toString()) * parseFloat(item.quantity.toString())), 0))
+    const totalAmount = cart.items.reduce((sum, item) => sum + (parseFloat(item.price.toString()) * parseFloat(item.quantity.toString())), 0)
     // Create order
+    console.log("totalAmount=====", totalAmount)
     const orderResult = await client.query(
       'INSERT INTO orders (user_id, total_amount) VALUES ($1, $2) RETURNING *',
-      [user_id, cart.items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)]
+      [user_id, totalAmount]
     );
+    console.log("this si order result", orderResult)
     const order = orderResult.rows[0];
 
     // Create order items
@@ -220,7 +265,7 @@ export async function createOrder(user_id: string, cart: CartWithItems): Promise
       cart.items.map(async (item) => {
         const result = await client.query(
           'INSERT INTO order_items (order_id, product_id, quantity, price_at_time) VALUES ($1, $2, $3, $4) RETURNING *',
-          [order.id, item.product_id, item.quantity, item.product.price]
+          [order.id, item.id, item.quantity, item.price]
         );
         return result.rows[0];
       })
@@ -235,7 +280,7 @@ export async function createOrder(user_id: string, cart: CartWithItems): Promise
       ...order,
       items: orderItems.map(item => ({
         ...item,
-        product: cart.items.find(ci => ci.product_id === item.product_id)!.product
+        product: cart.items.find(ci => ci.id === item.product_id)!.id
       }))
     };
   } catch (error) {
@@ -281,8 +326,6 @@ export async function updateOrderStatus(id: string, status: Order['status']): Pr
 }
 
 export async function getCartsItemCount(user_id: string): Promise<{ count: number }> {
-  console.log("Getting total cart item quantity for user_id====", user_id);
-
   // Use SUM(quantity) to get the total number of individual items
   const query = `
     SELECT SUM(quantity) AS total_items

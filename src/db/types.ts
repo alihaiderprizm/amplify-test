@@ -14,6 +14,7 @@ export interface Product {
   price: number;
   stock_quantity: number;
   image_url: string | null;
+  quantity:number
   created_at: Date;
   updated_at: Date;
 }
@@ -53,9 +54,11 @@ export interface OrderItem {
 }
 
 export interface CartWithItems extends Cart {
-  items: (CartItem & { product: Product })[];
+  // items: (CartItem & { product: Product })[];
+  items:Product[]
 }
 
 export interface OrderWithItems extends Order {
-  items: (OrderItem & { product: Product })[];
+  // items: (OrderItem & { product: Product })[];
+  items:Product[]
 } 

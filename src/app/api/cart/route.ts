@@ -96,22 +96,37 @@ export async function POST(request: Request) {
 
     let cart = await getCartByUserId(userId);
     if (!cart) {
+      console.log('Creating new cart for user:', userId);
       const newCart = await createCart(userId);
+      if (!newCart) {
+        console.error('Failed to create new cart');
+        return NextResponse.json({ error: 'Failed to create cart' }, { status: 500 });
+      }
       cart = { ...newCart, items: [] } as CartWithItems;
     }
 
-    const existingItem = cart.items.find(item => item.product_id === product_id);
+    console.log('Adding to cart:', { cart_id: cart.id, product_id, quantity, user_id: userId });
+    const existingItem = cart.items.find(item => item.id === product_id);
     if (existingItem) {
+      console.log('Updating existing cart item:', { cart_id: cart.id, product_id, quantity: existingItem.quantity + quantity });
       await updateCartItem(cart.id, product_id, existingItem.quantity + quantity);
     } else {
+      console.log('Adding new cart item:', { cart_id: cart.id, product_id, quantity, user_id: userId });
       await addToCart(cart.id, product_id, quantity, userId);
     }
 
     const updatedCart = await getCartByUserId(userId);
+    if (!updatedCart) {
+      console.error('Failed to fetch updated cart after adding item');
+      return NextResponse.json({ error: 'Failed to fetch updated cart' }, { status: 500 });
+    }
     return NextResponse.json(updatedCart);
   } catch (error) {
     console.error('Error adding to cart:', error);
-    return NextResponse.json({ error: 'Failed to add to cart' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Failed to add to cart',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
 

@@ -33,6 +33,7 @@ export async function POST(request: Request) {
 
   try {
     const cart = await getCartByUserId(session.user.id);
+    console.log("cart====",cart)
     if (!cart || !cart.items.length) {
       return NextResponse.json(
         { error: 'Cart is empty' },
