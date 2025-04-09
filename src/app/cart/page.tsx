@@ -48,7 +48,7 @@ export default function CartPage() {
   const getCartCount = async () => {
     const response = await api.get('/cart/count');
 
-    if (response.data.count) {
+    if (response.data.count !== null && response.data.count !== undefined) {
       dispatch(setCartCount(response.data.count))
     }
     // const data = await response.json();
@@ -96,7 +96,7 @@ export default function CartPage() {
     try {
       await api.post('/orders');
       message.success('Order created successfully');
-      router.push('/orders');
+      // router.push('/orders');
     } catch (error: any) {
       console.error('Error creating order:', error);
       message.error(error.response?.data?.error || 'Failed to create order');

@@ -54,7 +54,7 @@ export default function HomePage() {
   const getCartCount = async () => {
     const response = await api.get('/cart/count');
 
-    if (response.data.count) {
+    if (response.data.count !== null && response.data.count !== undefined) {
       dispatch(setCartCount(response.data.count))
     }
     // const data = await response.json();
