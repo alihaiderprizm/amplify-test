@@ -14,6 +14,7 @@ export interface Product {
   price: number;
   stock_quantity: number;
   image_url: string | null;
+  order_id?:string
   quantity:number
   created_at: Date;
   updated_at: Date;

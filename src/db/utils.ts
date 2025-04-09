@@ -317,12 +317,105 @@ export async function getOrdersByUserId(user_id: string): Promise<OrderWithItems
   return orders;
 }
 
-export async function updateOrderStatus(id: string, status: Order['status']): Promise<Order | null> {
-  const result = await pool.query(
-    'UPDATE orders SET status = $2 WHERE id = $1 RETURNING *',
-    [id, status]
-  );
-  return result.rows[0] || null;
+export async function getOrders(): Promise<OrderWithItems[]> {
+  try {
+    const result = await pool.query(
+      `SELECT o.*, oi.*, p.*, u.email as user_email
+       FROM orders o
+       LEFT JOIN order_items oi ON o.id = oi.order_id
+       LEFT JOIN products p ON oi.product_id = p.id
+       LEFT JOIN users u ON o.user_id = u.id
+       ORDER BY o.created_at DESC`
+    );
+
+    // Group items by order
+    const ordersMap = new Map<string, OrderWithItems>();
+    result.rows.forEach(row => {
+      if (!ordersMap.has(row.order_id)) {
+        ordersMap.set(row.order_id, {
+          id: row.order_id,
+          user_id: row.user_id,
+          user_email: row.user_email,
+          total_amount: row.total_amount,
+          status: row.status,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          items: []
+        });
+      }
+      if (row.product_id) {
+        ordersMap.get(row.order_id)!.items.push({
+          id: row.id,
+          order_id: row.order_id,
+          product_id: row.product_id,
+          quantity: row.quantity,
+          price_at_time: row.price_at_time,
+          product: {
+            id: row.product_id,
+            name: row.name,
+            description: row.description,
+            price: row.price,
+            image_url: row.image_url,
+            stock_quantity: row.stock_quantity,
+            created_at: row.product_created_at,
+            updated_at: row.product_updated_at
+          }
+        });
+      }
+    });
+
+    return Array.from(ordersMap.values());
+  } catch (error) {
+    console.error('Error in getOrders:', error);
+    throw error;
+  }
+}
+
+export async function updateOrderStatus(id: string, status: string): Promise<OrderWithItems | null> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Update order status
+    const result = await client.query(
+      'UPDATE orders SET status = $1 WHERE id = $2 RETURNING *',
+      [status, id]
+    );
+
+    if (!result.rows[0]) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    // If order is being confirmed, reduce stock quantity
+    if (status === 'confirmed') {
+      // Get all order items with their quantities
+      const itemsResult = await client.query(
+        'SELECT product_id, quantity FROM order_items WHERE order_id = $1',
+        [id]
+      );
+
+      // Update stock quantity for each product
+      for (const item of itemsResult.rows) {
+        await client.query(
+          'UPDATE products SET stock_quantity = stock_quantity - $1 WHERE id = $2',
+          [item.quantity, item.product_id]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    // Get the updated order with its items
+    const orders = await getOrders();
+    return orders.find(order => order.id === id) || null;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error in updateOrderStatus:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getCartsItemCount(user_id: string): Promise<{ count: number }> {

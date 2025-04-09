@@ -36,4 +36,25 @@ export interface CartItem {
 
 export interface CartWithItems extends Cart {
   items: CartItem[];
+}
+
+export interface Order {
+  id: string;
+  user_id: string;
+  total_amount: number;
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderWithItems extends Order {
+  user_email: string;
+  items: Array<{
+    id: string;
+    order_id: string;
+    product_id: string;
+    quantity: number;
+    price_at_time: number;
+    product: Product;
+  }>;
 } 
