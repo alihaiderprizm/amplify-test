@@ -28,6 +28,7 @@ export interface CartItem {
   id: string;
   cart_id: string;
   product_id: string;
+  user_id: string;
   quantity: number;
   created_at: Date;
   updated_at: Date;

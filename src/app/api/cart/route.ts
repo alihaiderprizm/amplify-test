@@ -100,12 +100,15 @@ export async function POST(request: Request) {
       cart = { ...newCart, items: [] } as CartWithItems;
     }
 
-    if (!cart) {
-      return NextResponse.json({ error: 'Failed to create cart' }, { status: 500 });
+    const existingItem = cart.items.find(item => item.product_id === product_id);
+    if (existingItem) {
+      await updateCartItem(cart.id, product_id, existingItem.quantity + quantity);
+    } else {
+      await addToCart(cart.id, product_id, quantity, userId);
     }
 
-    const cartItem = await addToCart(cart.id, product_id, quantity);
-    return NextResponse.json(cartItem, { status: 201 });
+    const updatedCart = await getCartByUserId(userId);
+    return NextResponse.json(updatedCart);
   } catch (error) {
     console.error('Error adding to cart:', error);
     return NextResponse.json({ error: 'Failed to add to cart' }, { status: 500 });

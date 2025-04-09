@@ -39,6 +39,7 @@ export default function LoginPage() {
         preferred_username: data.user.preferred_username,
         phone_number: data.user.phone_number,
         birthdate: data.user.birthdate,
+        isAdmin: data.user.is_admin
       }));
 
       // Create NextAuth session

@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { Table, Button, message, InputNumber, Space, Typography, Card } from 'antd';
 import { DeleteOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import api from '@/lib/axios';
+import { setCartCount } from '@/store/slices/userSlice';
+import { useDispatch } from 'react-redux';
 
 const { Title } = Typography;
 
@@ -26,6 +28,7 @@ interface CartItem {
 export default function CartPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const dispatch = useDispatch()
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,11 +45,21 @@ export default function CartPage() {
     }
   }, [status, session]);
 
+  const getCartCount = async () => {
+    const response = await api.get('/cart/count');
+
+    if (response.data.count) {
+      dispatch(setCartCount(response.data.count))
+    }
+    // const data = await response.json();
+    // console.log("data", data)
+  }
   const fetchCart = useCallback(async () => {
     try {
       const { data } = await api.get('/cart');
       console.log("Cart data:", data);
       setCartItems(data.items || []);
+      getCartCount()
     } catch (error: any) {
       console.error('Error fetching cart:', error);
       message.error(error.response?.data?.error || 'Failed to load cart');
@@ -96,8 +109,9 @@ export default function CartPage() {
       dataIndex: 'name',
       key: 'name',
       render: (_: any, record: CartItem) => (
-        <div className="flex items-center">
+        <div className="flex items-center" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <img
+            style={{ width: "25px", height: "25px", alignSelf: "center" }}
             src={record.image_url || '/placeholder.png'}
             alt={record.name}
             className="w-16 h-16 object-cover mr-4"

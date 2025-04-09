@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { pool } from '@/db/db';
+import { getCartsItemCount } from '@/db/utils';
 
 export async function GET() {
   try {
@@ -10,16 +10,12 @@ export async function GET() {
       return NextResponse.json({ count: 0 });
     }
 
-    const result = await pool.query(
-      `SELECT COALESCE(SUM(quantity), 0) as count
-       FROM cart_items
-       WHERE cart_id IN (
-         SELECT id FROM carts WHERE user_id = $1
-       )`,
-      [session.user.id]
-    );
+    const result = await getCartsItemCount(session.user.id)
+    // console.log("result", result)
 
-    return NextResponse.json({ count: parseInt(result.rows[0].count) });
+
+
+    return NextResponse.json({ count: result.count });
   } catch (error) {
     console.error('Error getting cart count:', error);
     return NextResponse.json({ count: 0 });

@@ -178,14 +178,10 @@ export async function createCart(user_id: string): Promise<Cart> {
   return result.rows[0];
 }
 
-export async function addToCart(cart_id: string, product_id: string, quantity: number): Promise<CartItem> {
+export async function addToCart(cart_id: string, product_id: string, quantity: number, user_id: string): Promise<CartItem> {
   const result = await pool.query(
-    `INSERT INTO cart_items (cart_id, product_id, quantity) 
-     VALUES ($1, $2, $3) 
-     ON CONFLICT (cart_id, product_id) 
-     DO UPDATE SET quantity = cart_items.quantity + $3 
-     RETURNING *`,
-    [cart_id, product_id, quantity]
+    'INSERT INTO cart_items (cart_id, product_id, quantity, user_id) VALUES ($1, $2, $3, $4) RETURNING *',
+    [cart_id, product_id, quantity, user_id]
   );
   return result.rows[0];
 }
@@ -282,4 +278,36 @@ export async function updateOrderStatus(id: string, status: Order['status']): Pr
     [id, status]
   );
   return result.rows[0] || null;
-} 
+}
+
+export async function getCartsItemCount(user_id: string): Promise<{ count: number }> {
+  console.log("Getting total cart item quantity for user_id====", user_id);
+
+  // Use SUM(quantity) to get the total number of individual items
+  const query = `
+    SELECT SUM(quantity) AS total_items
+    FROM cart_items
+    WHERE user_id = $1;
+  `;
+
+  try {
+    const result = await pool.query(query, [user_id]);
+
+    // SUM always returns one row.
+    // If the user has no items or the user_id doesn't exist in the table,
+    // SUM(quantity) will be NULL.
+    // We access the value using the alias 'total_items'.
+    // We use || 0 to safely handle the NULL case, defaulting the count to 0.
+    // Convert the result (which might be a string) to a number.
+    const count = Number(result.rows[0]?.total_items || 0);
+
+    console.log(`User ${user_id} has a total quantity of ${count} items in cart.`);
+    return { count };
+
+  } catch (error) {
+    console.error(`Error fetching cart item count for user ${user_id}:`, error);
+    // Re-throwing the error allows the caller to handle it.
+    // Alternatively, you could return 0 or a specific error indicator.
+    throw error;
+  }
+}

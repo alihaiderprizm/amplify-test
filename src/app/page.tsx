@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { Card, Row, Col, Button, message, Input, Space } from 'antd';
+import { Card, Row, Col, Button, message, Input, Space, Spin } from 'antd';
 import { ShoppingCartOutlined } from '@ant-design/icons';
 import Link from 'next/link';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/store/store';
+import api from '@/lib/axios';
+import { setCartCount } from '@/store/slices/userSlice';
 
 interface Product {
   id: string;
@@ -19,22 +21,27 @@ interface Product {
 
 export default function HomePage() {
   const { data: session } = useSession();
-  const user = useSelector((state: RootState) => state.user)
-  console.log("data", user)
+  const dispatch = useDispatch()
+
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchProducts();
+    getCartCount()
   }, []);
 
   const fetchProducts = async () => {
     try {
-      const response = await fetch('/api/products');
-      if (!response.ok) throw new Error('Failed to fetch products');
-      const data = await response.json();
-      setProducts(data);
+      const response = await api.get('/products');
+      // if (!response.ok) throw new Error('Failed to fetch products');
+      // const data = await response.json();
+      setLoading(false)
+      if (Array.isArray(response.data)) {
+        setProducts(response.data);
+        return;
+      }
     } catch (error) {
       message.error('Failed to load products');
     } finally {
@@ -42,6 +49,17 @@ export default function HomePage() {
     }
   };
 
+  // console.log("this si suer====", user)
+
+  const getCartCount = async () => {
+    const response = await api.get('/cart/count');
+
+    if (response.data.count) {
+      dispatch(setCartCount(response.data.count))
+    }
+    // const data = await response.json();
+    // console.log("data", data)
+  }
   const addToCart = async (productId: string) => {
     if (!session) {
       message.error('Please login to add items to cart');
@@ -59,7 +77,7 @@ export default function HomePage() {
           quantity: 1,
         }),
       });
-
+      getCartCount()
       if (!response.ok) throw new Error('Failed to add to cart');
       message.success('Added to cart successfully');
     } catch (error) {
@@ -72,8 +90,9 @@ export default function HomePage() {
     product.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  return (
+  return loading ? <Spin /> : (
     <div>
+      {/* {loading && <Spin />} */}
       <Space direction="vertical" size="large" className="w-full">
         <Input.Search
           placeholder="Search products..."
