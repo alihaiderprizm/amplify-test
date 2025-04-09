@@ -9,10 +9,12 @@ interface UserState {
     preferred_username: string | null;
     phone_number: string | null;
     birthdate: string | null;
+    isAdmin: boolean;
   } | null;
   isAuthenticated: boolean;
   loading: boolean;
   error: string | null;
+  cartCount: number;
 }
 
 const initialState: UserState = {
@@ -20,6 +22,7 @@ const initialState: UserState = {
   isAuthenticated: false,
   loading: false,
   error: null,
+  cartCount: 0,
 };
 
 const userSlice = createSlice({
@@ -46,9 +49,13 @@ const userSlice = createSlice({
       state.isAuthenticated = false;
       state.loading = false;
       state.error = null;
+      state.cartCount = 0;
+    },
+    setCartCount: (state, action: PayloadAction<number>) => {
+      state.cartCount = action.payload;
     },
   },
 });
 
-export const { loginStart, loginSuccess, loginFailure, logout } = userSlice.actions;
+export const { loginStart, loginSuccess, loginFailure, logout, setCartCount } = userSlice.actions;
 export default userSlice.reducer; 

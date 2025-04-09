@@ -5,13 +5,15 @@ import { NextRequestWithAuth } from 'next-auth/middleware';
 export async function middleware(request: NextRequestWithAuth) {
   const token = await getToken({ req: request });
   const isAdmin = token?.isAdmin;
-
-  // Protect admin routes
+  // Check if the user is trying to access an admin route
   if (request.nextUrl.pathname.startsWith('/admin')) {
     if (!token) {
+      // Redirect to login if not authenticated
       return NextResponse.redirect(new URL('/auth/login', request.url));
     }
+
     if (!isAdmin) {
+      // Redirect to home if not admin
       return NextResponse.redirect(new URL('/', request.url));
     }
   }

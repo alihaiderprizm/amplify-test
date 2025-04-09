@@ -51,6 +51,7 @@ export default function AdminDashboard() {
       if (!response.ok) throw new Error('Failed to fetch products');
       const data = await response.json();
       setProducts(data);
+      setLoading(false)
     } catch (error) {
       message.error('Failed to load products');
     } finally {
@@ -135,7 +136,7 @@ export default function AdminDashboard() {
       title: 'Price',
       dataIndex: 'price',
       key: 'price',
-      render: (price: number) => `$${price.toFixed(2)}`,
+      render: (price: number) => `$${price}`,
     },
     {
       title: 'Stock',

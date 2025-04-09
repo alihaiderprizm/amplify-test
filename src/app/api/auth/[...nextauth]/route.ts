@@ -3,33 +3,30 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { CognitoIdentityProviderClient, InitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { AuthOptions, Account, Profile, User as NextAuthUser, Session } from 'next-auth';
 import { JWT } from 'next-auth/jwt';
-import { getCartByUserId, createCart, getUserByEmail, createUser } from '@/db/utils';
-import { Cart } from '@/db/types';
+import * as db from '@/db/db';
+import { User, Cart, CartItem, CartWithItems } from '@/types';
 import { jwtDecode } from 'jwt-decode';
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.NEXT_PUBLIC_AWS_REGION,
 });
 
-interface Token extends JWT {
-  accessToken?: string;
-  idToken?: string;
-  refreshToken?: string;
-  expiresAt?: number;
-  sub?: string;
-  email?: string | null;
-  name?: string | null;
-  cart?: Cart;
-}
-
-interface SessionUser extends NextAuthUser {
+interface SessionUser {
   id: string;
   email: string;
   name: string;
-  accessToken: string;
-  idToken: string;
-  refreshToken: string;
-  cart: Cart;
+  isAdmin: boolean;
+  cartId: string;
+  cart: CartWithItems;
+}
+
+interface Token extends JWT {
+  id: string;
+  email: string;
+  name: string;
+  isAdmin: boolean;
+  cartId: string;
+  cart: CartWithItems;
 }
 
 declare module 'next-auth' {
@@ -80,9 +77,9 @@ export const authOptions: AuthOptions = {
           }
 
           // Get or create user in our database
-          let user = await getUserByEmail(credentials.email);
+          let user = await db.getUserByEmail(credentials.email);
           if (!user) {
-            user = await createUser(cognitoId, credentials.email);
+            user = await db.createUser(cognitoId, credentials.email);
           }
 
           if (!user) {
@@ -90,9 +87,9 @@ export const authOptions: AuthOptions = {
           }
 
           // Get or create cart for the user
-          let cart: Cart | null = await getCartByUserId(user.id);
+          let cart: Cart | null = await db.getCartByUserId(user.id);
           if (!cart) {
-            cart = await createCart(user.id);
+            cart = await db.createCart(user.id);
           }
 
           if (!cart) {
@@ -112,6 +109,8 @@ export const authOptions: AuthOptions = {
               created_at: cart.created_at,
               updated_at: cart.updated_at,
             },
+            isAdmin: false,
+            cartId: cart.id,
           };
         } catch (error: any) {
           throw new Error(error.message || 'Authentication failed');
@@ -120,35 +119,46 @@ export const authOptions: AuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user, account, profile }) {
+    async jwt({ token, user, account }) {
       if (account && user) {
-        token.accessToken = account.access_token;
-        token.idToken = account.id_token;
-        token.refreshToken = account.refresh_token;
-        token.expiresAt = account.expires_at;
-        token.sub = profile?.sub || user.id;
-        token.email = profile?.email || user.email;
-        token.name = profile?.name || user.name;
-        token.cart = (user as SessionUser).cart;
+        // Get the user from the database
+        const dbUser = await db.getUserByEmail(user.email as string);
+        
+        if (dbUser) {
+          // Update the token with user data
+          token.id = dbUser.id;
+          token.email = dbUser.email;
+          token.name = dbUser.email; // Using email as name since preferred_username might not exist
+          token.isAdmin = dbUser.is_admin;
+          
+          // Get or create cart for the user
+          let cart = await db.getCartByUserId(dbUser.id);
+          if (!cart) {
+            cart = await db.createCart(dbUser.id);
+          }
+          
+          if (cart) {
+            token.cartId = cart.id;
+            // Get cart items
+            const cartItems = await db.getCartItems(cart.id);
+            token.cart = {
+              ...cart,
+              items: cartItems || []
+            };
+          }
+        }
       }
       return token;
     },
     async session({ session, token }) {
       if (token) {
         const typedToken = token as Token;
-        session.accessToken = typedToken.accessToken || '';
-        session.idToken = typedToken.idToken || '';
-        session.refreshToken = typedToken.refreshToken || '';
-        session.expiresAt = typedToken.expiresAt || 0;
-        session.user.id = typedToken.sub || '';
-        session.user.email = typedToken.email || '';
-        session.user.name = typedToken.name || '';
-        session.user.cart = typedToken.cart || {
-          id: '',
-          user_id: '',
-          created_at: new Date(),
-          updated_at: new Date(),
-        };
+        session.user.id = typedToken.id;
+        session.user.email = typedToken.email;
+        session.user.name = typedToken.name;
+        session.user.isAdmin = typedToken.isAdmin;
+        session.user.cartId = typedToken.cartId;
+        session.user.cart = typedToken.cart;
       }
       return session;
     },

@@ -37,9 +37,12 @@ export async function PUT(request: Request) {
 
   try {
     const body = await request.json();
+    console.log("this is body====",body)
     const { id, ...productData } = body;
+    // const product = null
     const product = await updateProduct(id, productData);
     
+    // console.log("this is product====",product)
     if (!product) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
