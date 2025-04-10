@@ -18,6 +18,7 @@ interface SessionUser {
   isAdmin: boolean;
   cartId: string;
   cart: CartWithItems;
+  cognitoId: string;
 }
 
 interface Token extends JWT {
@@ -27,6 +28,21 @@ interface Token extends JWT {
   isAdmin: boolean;
   cartId: string;
   cart: CartWithItems;
+  accessToken: string;
+  idToken: string;
+  refreshToken: string;
+  expiresAt: number;
+  cognitoId: string;
+}
+
+interface AuthUser extends NextAuthUser {
+  accessToken: string;
+  idToken: string;
+  refreshToken: string;
+  cart: CartWithItems;
+  cartId: string;
+  isAdmin: boolean;
+  cognitoId: string;
 }
 
 declare module 'next-auth' {
@@ -103,6 +119,7 @@ export const authOptions: AuthOptions = {
             accessToken: response.AuthenticationResult.AccessToken,
             idToken: response.AuthenticationResult.IdToken,
             refreshToken: response.AuthenticationResult.RefreshToken,
+            cognitoId: cognitoId,
             cart: {
               id: cart.id,
               user_id: cart.user_id,
@@ -113,6 +130,7 @@ export const authOptions: AuthOptions = {
             cartId: cart.id,
           };
         } catch (error: any) {
+          console.error('Authentication error:', error);
           throw new Error(error.message || 'Authentication failed');
         }
       }
@@ -128,7 +146,7 @@ export const authOptions: AuthOptions = {
           // Update the token with user data
           token.id = dbUser.id;
           token.email = dbUser.email;
-          token.name = dbUser.email; // Using email as name since preferred_username might not exist
+          token.name = dbUser.email;
           token.isAdmin = dbUser.is_admin;
           
           // Get or create cart for the user
@@ -146,6 +164,16 @@ export const authOptions: AuthOptions = {
               items: cartItems || []
             };
           }
+
+          // Add tokens from the user object
+          const authUser = user as AuthUser;
+          if (authUser.accessToken) {
+            token.accessToken = authUser.accessToken;
+            token.idToken = authUser.idToken;
+            token.refreshToken = authUser.refreshToken;
+            token.expiresAt = Date.now() + 3600 * 1000; // 1 hour from now
+            token.cognitoId = authUser.cognitoId;
+          }
         }
       }
       return token;
@@ -159,6 +187,13 @@ export const authOptions: AuthOptions = {
         session.user.isAdmin = typedToken.isAdmin;
         session.user.cartId = typedToken.cartId;
         session.user.cart = typedToken.cart;
+        session.user.cognitoId = typedToken.cognitoId;
+        
+        // Add tokens to session
+        session.accessToken = typedToken.accessToken;
+        session.idToken = typedToken.idToken;
+        session.refreshToken = typedToken.refreshToken;
+        session.expiresAt = typedToken.expiresAt;
       }
       return session;
     },

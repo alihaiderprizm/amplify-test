@@ -10,8 +10,12 @@ const pool = new Pool({
 });
 
 // JWKS client for Cognito
+// const client = jwksClient({
+//   jwksUri: `https://cognito-idp.${process.env.NEXT_PUBLIC_AWS_REGION}.amazonaws.com/${process.env.NEXT_PUBLIC_USER_POOL_ID}/.well-known/jwks.json`
+// });
+
 const client = jwksClient({
-  jwksUri: `https://cognito-idp.${process.env.NEXT_PUBLIC_AWS_REGION}.amazonaws.com/${process.env.NEXT_PUBLIC_USER_POOL_ID}/.well-known/jwks.json`
+  jwksUri: `${process.env.COGNITO_ISSUER}/.well-known/jwks.json`
 });
 
 // Get signing key from JWKS
@@ -35,29 +39,132 @@ const getKey = (header: JwtHeader | null, callback: (err: Error | null, key?: st
 };
 
 // Verify access token
+// export async function verifyAccessToken(token: string): Promise<JwtPayload> {
+//   try {
+//     const expectedAudience = process.env.COGNITO_CLIENT_ID;
+//     console.log('Verifying token with audience:', expectedAudience);
+    
+//     if (!expectedAudience) {
+//       throw new Error('COGNITO_CLIENT_ID environment variable is not set');
+//     }
+
+//     const decoded = await new Promise<JwtPayload>((resolve, reject) => {
+//       verify(
+//         token,
+//         (header, callback) => {
+//           client.getSigningKey(header.kid, (err, key) => {
+//             if (err) {
+//               console.error('Error getting signing key:', err);
+//               callback(err);
+//               return;
+//             }
+//             if (!key) {
+//               callback(new Error('No signing key found'));
+//               return;
+//             }
+//             const signingKey = key.getPublicKey();
+//             callback(null, signingKey);
+//           });
+//         },
+//         {
+//           algorithms: ['RS256'],
+//           issuer: process.env.COGNITO_ISSUER,
+//           audience: expectedAudience,
+//           complete: false
+//         },
+//         (err, decoded) => {
+//           if (err) {
+//             console.error('Token verification error:', err);
+//             reject(err);
+//             return;
+//           }
+//           if (!decoded) {
+//             reject(new Error('Token verification failed: no decoded payload'));
+//             return;
+//           }
+//           resolve(decoded as JwtPayload);
+//         }
+//       );
+//     });
+
+//     console.log('Token successfully verified');
+//     return decoded;
+//   } catch (error) {
+//     console.error('Token verification failed:', error);
+//     throw error;
+//   }
+// }
 export async function verifyAccessToken(token: string): Promise<JwtPayload> {
-  return new Promise((resolve, reject) => {
-    const options: VerifyOptions = {
-      algorithms: ['RS256'],
-      issuer: `https://cognito-idp.${process.env.NEXT_PUBLIC_AWS_REGION}.amazonaws.com/${process.env.NEXT_PUBLIC_USER_POOL_ID}`,
-      audience: process.env.NEXT_PUBLIC_USER_POOL_CLIENT_ID,
-      complete: false
-    };
+  // No need for try/catch here if the Promise handles rejection
+  // const expectedAudience = process.env.COGNITO_CLIENT_ID; // Keep this if checking client_id later
+  const issuer = process.env.COGNITO_ISSUER;
 
-    const callback: VerifyCallback = (err: Error | null, decoded: string | JwtPayload | undefined) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      if (!decoded || typeof decoded === 'string') {
-        reject(new Error('Token verification failed'));
-        return;
-      }
-      resolve(decoded as JwtPayload);
-    };
+  // Basic validation of environment variables
+  if (!issuer) {
+      console.error('COGNITO_ISSUER environment variable is not set');
+      throw new Error('COGNITO_ISSUER environment variable is not set');
+  }
+  // Keep the check for COGNITO_CLIENT_ID if you plan to check the payload's client_id later
+  // if (!expectedAudience) {
+  //   throw new Error('COGNITO_CLIENT_ID environment variable is not set');
+  // }
 
-    verify(token, getKey, options, callback);
+  return new Promise<JwtPayload>((resolve, reject) => {
+    verify(
+      token,
+      (header, callback) => {
+        // Ensure header and header.kid exist
+        if (!header || !header.kid) {
+          return callback(new Error('Token header is missing \'kid\''));
+        }
+        client.getSigningKey(header.kid, (err, key) => {
+          if (err) {
+            console.error('Error getting signing key:', err);
+            return callback(err); // Pass the error correctly
+          }
+          // Ensure key is not undefined and has getPublicKey method
+          if (!key || typeof (key as any).getPublicKey !== 'function') {
+              console.error("Invalid key received from JWKS endpoint:", key);
+              return callback(new Error('Invalid key received from JWKS endpoint'));
+          }
+          const signingKey = (key as jwksClient.RsaSigningKey).getPublicKey();
+          callback(null, signingKey);
+        });
+      },
+      {
+        algorithms: ['RS256'],
+        issuer: issuer,
+        // audience: expectedAudience, // <-- REMOVE OR COMMENT OUT THIS LINE
+        complete: false // 'complete: false' is default, can be omitted
+      },
+      (err, decoded) => {
+        if (err) {
+          // Log the specific JWT error name and message
+          console.error('Token verification error:', err.name, err.message);
+          return reject(err); // Reject the promise
+        }
+        if (!decoded) {
+          // This case might be redundant if 'err' is always set on failure
+          console.error('Token verification failed: no decoded payload');
+          return reject(new Error('Token verification failed: no decoded payload'));
+        }
+
+        // --- Optional Check ---
+        // If you need to ensure the token was issued for your client app:
+        // const payload = decoded as JwtPayload & { client_id?: string };
+        // if (payload.client_id !== process.env.COGNITO_CLIENT_ID) {
+        //    console.error('Token verification error: client_id mismatch in payload');
+        //    return reject(new Error('Invalid client_id in token payload'));
+        // }
+        // --- End Optional Check ---
+
+
+        console.log('Token successfully verified (Signature and Issuer)');
+        resolve(decoded as JwtPayload); // Resolve the promise
+      }
+    );
   });
+  // Removed outer try/catch - let Promise rejection handle errors
 }
 
 // Get user by verified access token
@@ -66,17 +173,22 @@ export async function getUserByVerifiedAccessToken(accessToken: string): Promise
     // Verify the token
     const decoded = await verifyAccessToken(accessToken);
     const cognitoId = decoded.sub;
-
     if (!cognitoId) {
       throw new Error('Invalid token: missing sub claim');
     }
 
-    // Get user from database
+    // Get user from database using cognito_id
     const result = await pool.query(
       'SELECT * FROM users WHERE cognito_id = $1',
       [cognitoId]
     );
-    return result.rows[0] || null;
+
+    if (!result.rows[0]) {
+      console.error('No user found for cognito_id:', cognitoId);
+      return null;
+    }
+
+    return result.rows[0];
   } catch (error) {
     console.error('Token verification failed:', error);
     return null;

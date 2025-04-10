@@ -4,7 +4,7 @@ import { getUserByCognitoId } from '@/db/utils';
 import { jwtDecode } from 'jwt-decode';
 
 const cognitoClient = new CognitoIdentityProviderClient({
-  region: process.env.NEXT_PUBLIC_AWS_REGION,
+  region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-2',
 });
 
 export async function POST(request: Request) {
@@ -33,10 +33,12 @@ export async function POST(request: Request) {
     if (!cognitoId) {
       throw new Error('Invalid token: missing sub claim');
     }
-
     // Get user from our database
     const user = await getUserByCognitoId(cognitoId);
 
+    if (!user) {
+      throw new Error('User not found');
+    }
     return NextResponse.json({
       user: {
         accessToken: response.AuthenticationResult.AccessToken,

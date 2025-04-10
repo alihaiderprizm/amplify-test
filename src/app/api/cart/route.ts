@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
   try {
     let userId: string | undefined;
-    
+
     if (accessToken) {
       const user = await getUserByVerifiedAccessToken(accessToken);
       if (!user) {
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
 
     if (!userId) {
       console.error('User ID not found - Session:', session, 'Access Token:', !!accessToken);
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'User ID not found',
         details: 'Please ensure you are properly authenticated'
       }, { status: 400 });
@@ -63,16 +63,17 @@ export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   const accessToken = request.headers.get('Authorization')?.split(' ')[1];
 
-  console.log("this is accessToken=====",accessToken)
-  if (!session && !accessToken) {
+
+  if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
     let userId: string | undefined;
-    
-    if (accessToken) {
-      const user = await getUserByVerifiedAccessToken(accessToken);
+
+    if (session?.accessToken) {
+      const user = await getUserByVerifiedAccessToken(session?.accessToken);
+      console.log("this is user=====",user)
       if (!user) {
         return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
       }
@@ -96,6 +97,7 @@ export async function POST(request: Request) {
     }
 
     let cart = await getCartByUserId(userId);
+    console.log("this is cart=====",cart)
     if (!cart) {
       console.log('Creating new cart for user:', userId);
       const newCart = await createCart(userId);
@@ -117,6 +119,7 @@ export async function POST(request: Request) {
     }
 
     const updatedCart = await getCartByUserId(userId);
+    console.log("this is updatedCart=====",updatedCart)
     if (!updatedCart) {
       console.error('Failed to fetch updated cart after adding item');
       return NextResponse.json({ error: 'Failed to fetch updated cart' }, { status: 500 });
@@ -124,7 +127,7 @@ export async function POST(request: Request) {
     return NextResponse.json(updatedCart);
   } catch (error) {
     console.error('Error adding to cart:', error);
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Failed to add to cart',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });

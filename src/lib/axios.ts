@@ -27,10 +27,10 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Handle unauthorized access
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('idToken');
-      localStorage.removeItem('refreshToken');
-      window.location.href = '/auth/login';
+      // localStorage.removeItem('accessToken');
+      // localStorage.removeItem('idToken');
+      // localStorage.removeItem('refreshToken');
+      // window.location.href = '/auth/login';
     }
     return Promise.reject(error);
   }

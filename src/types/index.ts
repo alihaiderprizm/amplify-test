@@ -55,6 +55,14 @@ export interface OrderWithItems extends Order {
     product_id: string;
     quantity: number;
     price_at_time: number;
-    product: Product;
+
+    // id: string;
+    name: string;
+    description: string;
+    price: string;
+    image_url: string;
+    stock_quantity: number;
+    created_at: Date;
+    updated_at: Date;
   }>;
 } 

@@ -8,6 +8,7 @@ import axios from 'axios';
 import { useDispatch } from 'react-redux';
 import { signIn } from 'next-auth/react';
 import { loginStart, loginSuccess, loginFailure } from '@/store/slices/userSlice';
+import api from '@/utils/api';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,13 +20,9 @@ export default function LoginPage() {
     dispatch(loginStart());
     try {
       // First, authenticate with Cognito directly
-      const { data } = await axios.post('/api/auth/login', values, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const {data} = await api.post('/auth/login', values);
 
-      console.log("this is data=====",data)
+      console.log("this is data users=====", data)
       // Store tokens in localStorage
       localStorage.setItem('accessToken', data.user.accessToken);
       localStorage.setItem('idToken', data.user.idToken);

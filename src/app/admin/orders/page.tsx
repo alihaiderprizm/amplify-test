@@ -118,7 +118,7 @@ export default function OrdersPage() {
                 <TableCell>
                   {order.items.map((item) => (
                     <div key={item.id}>
-                      {item.quantity}x {item.product.name} (${item.price_at_time})
+                      {item.quantity}x {item.name} (${item.price_at_time})
                     </div>
                   ))}
                 </TableCell>
