@@ -1,0 +1,23 @@
+NEXT_PUBLIC_AWS_REGION=us-east-2
+NEXT_PUBLIC_USER_POOL_ID=us-east-2_1LRwfnTzc
+NEXT_PUBLIC_USER_POOL_CLIENT_ID=2de9iqinbjd076tm96c5ms9391
+NEXT_PUBLIC_API_ENDPOINT=/api
+
+# AWS Cognito
+COGNITO_CLIENT_ID=2de9iqinbjd076tm96c5ms9391
+COGNITO_CLIENT_SECRET=your_cognito_client_secret
+COGNITO_ISSUER=https://cognito-idp.us-east-2.amazonaws.com/us-east-2_pvir6
+
+# PostgreSQL
+DATABASE_URL=postgresql://postgres:Prizm2025!@database-1-instance-1.ctc6u6u0olay.us-east-2.rds.amazonaws.com:5432/postgres
+
+# NextAuth
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET="iUnC3cetUvBsniXxXr01bCSczdsoT2mbGkjpmn5ah1A="
+
+# Database Configuration
+DB_USER=postgres
+DB_PASSWORD=Prizm2025!
+DB_NAME=database-1
+DB_HOST=database-1-instance-1.ctc6u6u0olay.us-east-2.rds.amazonaws.com
+DB_PORT=5432 

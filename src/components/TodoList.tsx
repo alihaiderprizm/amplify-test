@@ -30,7 +30,7 @@ export default function TodoList() {
 
   const fetchTodos = async () => {
     if (!session?.user?.id) return;
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -71,7 +71,7 @@ export default function TodoList() {
 
   const toggleTodo = async (id: string) => {
     if (!session?.user?.id) return;
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -94,11 +94,11 @@ export default function TodoList() {
 
   const deleteTodo = async (id: string) => {
     if (!session?.user?.id) return;
-    
+
     setLoading(true);
     setError(null);
     try {
-      await deleteTodo(id, session.user.id);
+      await deleteTodo(id,);
       setTodos(todos.filter(todo => todo.id !== id));
       message.success('Todo deleted successfully');
     } catch (error) {
@@ -132,7 +132,7 @@ export default function TodoList() {
           </span>
         )}
       </div>
-      
+
       {error && (
         <Alert
           message="Error"
@@ -184,7 +184,7 @@ export default function TodoList() {
                 </Button>
               ]}
             >
-              <List.Item.Meta
+              {/* <List.Item.Meta
                 avatar={
                   <input
                     type="checkbox"
@@ -200,7 +200,7 @@ export default function TodoList() {
                   </span>
                 }
                 description={`Created: ${new Date(todo.created_at).toLocaleDateString()}`}
-              />
+              /> */}
             </List.Item>
           )}
         />
