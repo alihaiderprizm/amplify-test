@@ -45,6 +45,7 @@ export default function Header() {
         </Link>}
 
         {isAdmin && status === 'authenticated' && <Link href="/admin/products" style={{ textDecoration: 'none', color: 'inherit', fontWeight: "bold" }}>Add Products</Link>}
+        {isAdmin && status === 'authenticated' && <Link href="/admin/orders" style={{ textDecoration: 'none', color: 'inherit', fontWeight: "bold" }}>Orders</Link>}
         {status === 'authenticated' ? (
           <>
             <IconButton
