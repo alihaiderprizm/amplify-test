@@ -335,7 +335,6 @@ export async function getOrders(): Promise<OrderWithItems[]> {
         ordersMap.set(row.order_id, {
           id: row.order_id,
           user_id: row.user_id,
-          user_email: row.user_email,
           total_amount: row.total_amount,
           status: row.status,
           created_at: row.created_at,
@@ -347,19 +346,14 @@ export async function getOrders(): Promise<OrderWithItems[]> {
         ordersMap.get(row.order_id)!.items.push({
           id: row.id,
           order_id: row.order_id,
-          product_id: row.product_id,
           quantity: row.quantity,
-          price_at_time: row.price_at_time,
-          product: {
-            id: row.product_id,
-            name: row.name,
-            description: row.description,
-            price: row.price,
-            image_url: row.image_url,
-            stock_quantity: row.stock_quantity,
-            created_at: row.product_created_at,
-            updated_at: row.product_updated_at
-          }
+          price: row.price_at_time,
+          name: row.name,
+          description: row.description,
+          stock_quantity: row.stock_quantity,
+          image_url: row.image_url,
+          created_at: row.product_created_at,
+          updated_at: row.product_updated_at
         });
       }
     });

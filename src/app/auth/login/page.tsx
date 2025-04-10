@@ -25,6 +25,7 @@ export default function LoginPage() {
         },
       });
 
+      console.log("this is data=====",data)
       // Store tokens in localStorage
       localStorage.setItem('accessToken', data.user.accessToken);
       localStorage.setItem('idToken', data.user.idToken);
@@ -47,13 +48,14 @@ export default function LoginPage() {
         email: values.email,
         password: values.password,
         redirect: false,
+        accessToken: data.user.accessToken,
       });
 
       if (result?.error) {
         throw new Error(result.error);
       }
 
-      message.success('Login successful!');
+      message.success(' in successful!');
       router.push('/');
     } catch (error: any) {
       console.error("Login error:", error);

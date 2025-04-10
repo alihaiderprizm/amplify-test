@@ -63,6 +63,7 @@ export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   const accessToken = request.headers.get('Authorization')?.split(' ')[1];
 
+  console.log("this is accessToken=====",accessToken)
   if (!session && !accessToken) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
